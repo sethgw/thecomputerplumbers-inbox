@@ -345,7 +345,7 @@ async function streamToArrayBuffer(stream: ReadableStream, streamSize: number) {
 	return result;
 }
 
-async function receiveEmail(event: { raw: ReadableStream; rawSize: number }, env: Env, ctx: ExecutionContext) {
+async function receiveEmail(event: ForwardableEmailMessage, env: Env, ctx: ExecutionContext) {
 	const rawEmail = await streamToArrayBuffer(event.raw, event.rawSize);
 	const parsedEmail = await new PostalMime().parse(rawEmail);
 
@@ -364,7 +364,11 @@ async function receiveEmail(event: { raw: ReadableStream; rawSize: number }, env
 	if (!mailboxId) throw new Error("received email with no valid recipient address");
 
 	const messageId = crypto.randomUUID();
-	if (!(await env.BUCKET.head(`mailboxes/${mailboxId}.json`))) { console.log(`Ignoring email for ${mailboxId}: mailbox does not exist`); return; }
+	const mailboxObject = await env.BUCKET.get(`mailboxes/${mailboxId}.json`);
+	if (!mailboxObject) { console.log(`Ignoring email for ${mailboxId}: mailbox does not exist`); return; }
+	const mailboxSettings = await mailboxObject.json<{
+		forwarding?: { enabled?: boolean; email?: string };
+	}>();
 
 	const stub = env.MAILBOX.get(env.MAILBOX.idFromName(mailboxId));
 
@@ -401,6 +405,19 @@ async function receiveEmail(event: { raw: ReadableStream; rawSize: number }, env
 		in_reply_to: inReplyTo, email_references: emailReferences.length > 0 ? JSON.stringify(emailReferences) : null,
 		thread_id: threadId, message_id: originalMessageId, raw_headers: JSON.stringify(parsedEmail.headers),
 	}, attachmentData);
+
+	const forwardingAddress = mailboxSettings.forwarding?.enabled
+		? mailboxSettings.forwarding.email?.trim().toLowerCase()
+		: undefined;
+	if (forwardingAddress) {
+		try {
+			await event.forward(forwardingAddress);
+		} catch (e) {
+			// Forwarding is a backup copy. Keep the stored inbox message even if
+			// Cloudflare rejects or temporarily cannot deliver the copy.
+			console.error(`Backup forwarding to ${forwardingAddress} failed:`, (e as Error).message);
+		}
+	}
 
 	const agentStub = env.EMAIL_AGENT.get(env.EMAIL_AGENT.idFromName(mailboxId));
 	ctx.waitUntil(agentStub.fetch(new Request("https://agents/onNewEmail", {

@@ -2,8 +2,8 @@
 // Licensed under the Apache 2.0 license found in the LICENSE file or at:
 //     https://opensource.org/licenses/Apache-2.0
 
-import { Badge, Button, Input, Loader, useKumoToastManager } from "@cloudflare/kumo";
-import { RobotIcon, ArrowCounterClockwiseIcon } from "@phosphor-icons/react";
+import { Badge, Button, Input, Loader, Switch, useKumoToastManager } from "@cloudflare/kumo";
+import { EnvelopeSimpleIcon, RobotIcon, ArrowCounterClockwiseIcon } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 import { useParams } from "react-router";
 import { useMailbox, useUpdateMailbox } from "~/queries/mailboxes";
@@ -20,21 +20,37 @@ export default function SettingsRoute() {
 
 	const [displayName, setDisplayName] = useState("");
 	const [agentPrompt, setAgentPrompt] = useState("");
+	const [forwardingEnabled, setForwardingEnabled] = useState(false);
+	const [forwardingEmail, setForwardingEmail] = useState("");
 	const [isSaving, setIsSaving] = useState(false);
 
 	useEffect(() => {
 		if (mailbox) {
 			setDisplayName(mailbox.settings?.fromName || mailbox.name || "");
 			setAgentPrompt(mailbox.settings?.agentSystemPrompt || "");
+			setForwardingEnabled(mailbox.settings?.forwarding?.enabled || false);
+			setForwardingEmail(mailbox.settings?.forwarding?.email || "");
 		}
 	}, [mailbox]);
 
 	const handleSave = async () => {
 		if (!mailbox || !mailboxId) return;
+		const normalizedForwardingEmail = forwardingEmail.trim().toLowerCase();
+		if (forwardingEnabled && !normalizedForwardingEmail) {
+			toastManager.add({
+				title: "Enter an email address to enable forwarding",
+				variant: "error",
+			});
+			return;
+		}
 		setIsSaving(true);
 		const settings = {
 			...mailbox.settings,
 			fromName: displayName,
+			forwarding: {
+				enabled: forwardingEnabled,
+				email: normalizedForwardingEmail,
+			},
 			agentSystemPrompt: agentPrompt.trim() || undefined,
 		};
 		try {
@@ -81,6 +97,33 @@ export default function SettingsRoute() {
 							onChange={(e) => setDisplayName(e.target.value)}
 						/>
 						<Input label="Email" type="email" value={mailbox.email} disabled />
+					</div>
+				</div>
+
+				{/* Forwarding */}
+				<div className="rounded-lg border border-kumo-line bg-kumo-base p-5">
+					<div className="flex items-center gap-2 mb-2">
+						<EnvelopeSimpleIcon size={16} weight="duotone" className="text-kumo-subtle" />
+						<span className="text-sm font-medium text-kumo-default">
+							Forwarding
+						</span>
+					</div>
+					<p className="text-xs text-kumo-subtle mb-4">
+						Keep a backup copy of each incoming message in another inbox.
+					</p>
+					<div className="space-y-4">
+						<Switch
+							label="Forward incoming mail"
+							checked={forwardingEnabled}
+							onCheckedChange={setForwardingEnabled}
+						/>
+						<Input
+							label="Forwarding address"
+							type="email"
+							value={forwardingEmail}
+							onChange={(e) => setForwardingEmail(e.target.value)}
+							disabled={!forwardingEnabled}
+						/>
 					</div>
 				</div>
 
