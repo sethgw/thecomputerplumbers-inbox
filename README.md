@@ -96,3 +96,22 @@ Any user who passes the shared Cloudflare Access policy can access all mailboxes
 ## License
 
 Apache 2.0 -- see [LICENSE](LICENSE).
+
+## Computer Plumbers CI/CD
+
+GitHub Actions runs `npm ci`, typechecking, a production build, and a Wrangler
+deployment dry run on pull requests and pushes to `main`. A successful `main`
+run deploys `thecomputerplumbers-inbox` in the Onticord Cloudflare account. You
+can also run **CI and deploy** manually on `main` to redeploy that revision.
+Production deploys are serialized; pull requests never receive deployment credentials.
+
+The GitHub `production` environment holds `CLOUDFLARE_API_TOKEN` and permits
+only `main` to deploy. The existing Cloudflare Worker secrets `POLICY_AUD` and
+`TEAM_DOMAIN` remain configured in Cloudflare; they are not copied into GitHub.
+The committed `account-move-v1` migration tag matches the existing production
+Durable Objects. Preserve it and the current namespace/bucket bindings when
+updating the app so deployments retain mailbox data.
+
+If a deployment needs reverting, revert the application commit on `main` and
+let this workflow redeploy it. Review any database migration separately before
+rolling back code; a code rollback does not restore deleted or migrated data.
