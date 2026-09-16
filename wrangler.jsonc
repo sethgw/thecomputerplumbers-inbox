@@ -1,6 +1,10 @@
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
 	"name": "thecomputerplumbers-inbox",
+	"account_id": "e6c625b0e930468e2f9a4a036373f4c1",
+	"workers_dev": false,
+	"preview_urls": false,
+	"routes": [{ "pattern": "mail.thecomputerplumbers.com", "custom_domain": true }],
 	"compatibility_date": "2025-11-28",
 	"main": "./workers/app.ts",
 	"observability": {
@@ -50,20 +54,10 @@
 	},
 	"migrations": [
 		{
-			"tag": "v1",
+			"tag": "account-move-v1",
 			"new_sqlite_classes": [
-				"MailboxDO"
-			]
-		},
-		{
-			"tag": "v2",
-			"new_sqlite_classes": [
-				"EmailAgent"
-			]
-		},
-		{
-			"tag": "v3",
-			"new_sqlite_classes": [
+				"MailboxDO",
+				"EmailAgent",
 				"EmailMCP"
 			]
 		}
